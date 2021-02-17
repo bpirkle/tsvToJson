@@ -1,31 +1,29 @@
 'use strict';
 
 const fs = require( 'fs' );
-//const path = require( 'path' );
 
-function checkForNewTsvs( path ) {
-	const tsvFiles = fs.readdirSync( path ).filter( c => c.split( '.' ).pop() == 'tsv' );
-	tsvFiles.forEach( e => checkForNewTsv( path, e ) ); 
-	console.log( tsvFiles );
+function checkForNewTsvs( tsvPath ) {
+	if ( !fs.existsSync( tsvPath ) ) {
+		throw new Error( `static data path ${tsvPath} does not exist` );
+	}
+
+	const tsvFiles = fs.readdirSync( tsvPath ).filter( c => c.split( '.' ).pop() == 'tsv' );
+	if ( tsvFiles.length == 0 ) {
+		throw new Error( `no tsv files found in static data path ${tsvPath}` );
+	}
+
+
+	tsvFiles.forEach( e => checkForNewTsv( tsvPath, e ) ); 
 }
 
-function checkForNewTsv( path, tsvFile ) {
-	var tsvPathAndFile = path + '/' + tsvFile;
-	var jsonPathAndFile = path + '/' + tsvFile.split( '.' ).shift() + '.json';
-
-	var tsvMTime = getFileMTime( tsvPathAndFile );
+function checkForNewTsv( tsvPath, tsvFile ) {
+	var tsvPathAndFile = tsvPath + '/' + tsvFile;
+	var jsonPathAndFile = tsvPath + '/' + tsvFile.split( '.' ).shift() + '.json';
 
 	if ( !fs.existsSync( jsonPathAndFile ) ||
 		getFileMTime( tsvPathAndFile ) > getFileMTime( jsonPathAndFile ) ) {
 		tsvFileToJsonFile( tsvPathAndFile, jsonPathAndFile );
 	}
-/*
-	fs.stat( tsvPathAndFile, function( err, stats ) {
-		var mtimeMs = stats.mtimeMs;
-		console.log( mtimeMs );
-		tsvFileToJsonFile( tsvPathAndFile, jsonPathAndFile );
-	});
-*/
 }
 
 function getFileMTime( pathAndFile ) {
@@ -34,12 +32,14 @@ function getFileMTime( pathAndFile ) {
 
 function tsvFileToJsonFile( tsvPathAndFile, jsonPathAndFile ) {
         var tsv = fs.readFileSync( tsvPathAndFile, 'utf8' );
-        var json = tsvToJson( tsv );
-        try {
-                fs.writeFileSync( jsonPathAndFile, JSON.stringify( json ) );
-        } catch ( err ) {
-                console.log( err );
-        }
+		var json = tsvToJson( tsv );
+		try {
+			var fd = fs.openSync( jsonPathAndFile, 'w+' );
+			fs.writeSync( fd, JSON.stringify( json ) );
+			fs.closeSync( fd );
+		} catch ( err ) {
+			console.log( `Unable to open ${jsonPathAndFile} for writing: ${err.code} (${err.errno})` );
+		}
 }
 
 function tsvToJson( tsv ) {
